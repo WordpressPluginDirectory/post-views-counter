@@ -19,10 +19,10 @@ if ( ! defined( 'ABSPATH' ) )
  *
  * @param int|array $post_id
  * @param string $period
+ *
  * @return int
  */
 if ( ! function_exists( 'pvc_get_post_views' ) ) {
-
 	function pvc_get_post_views( $post_id = 0, $period = 'total' ) {
 		global $wpdb;
 
@@ -35,6 +35,8 @@ if ( ! function_exists( 'pvc_get_post_views' ) ) {
 		if ( is_array( $post_id ) ) {
 			$numbers = array_filter( array_unique( array_map( 'intval', $post_id ) ) );
 			$post_id = implode( ',', $numbers );
+		} else if ( $post_id === 'all' ) {
+			$numbers = [];
 		} else {
 			$post_id = (int) $post_id;
 			$numbers = [ $post_id ];
@@ -66,11 +68,18 @@ if ( ! function_exists( 'pvc_get_post_views' ) ) {
 		$ids_count = count( $numbers );
 
 		$where_clause = '';
+		
+		// add post ids if needed
+		if ( $ids_count ) {
+			$where_clause .= " WHERE id IN (" . implode( ',', array_fill( 0, $ids_count, '%d' ) ) . ") AND";
+		} else {
+			$where_clause .= " WHERE";
+		}
 
 		// validate where clause
 		foreach( $_where as $index => $value ) {
 			if ( $index === 'type' ) {
-				$where_clause .= ' AND type = %d';
+				$where_clause .= ' type = %d';
 				$numbers[] = (int) $value;
 			} elseif ( $index === 'content' ) {
 				$where_clause .= ' AND content = %d';
@@ -90,7 +99,7 @@ if ( ! function_exists( 'pvc_get_post_views' ) ) {
 		}
 
 		// prepare query
-		$query = $wpdb->prepare( "SELECT SUM(count) AS views FROM " . $wpdb->prefix . "post_views WHERE id IN (" . implode( ',', array_fill( 0, $ids_count, '%d' ) ) . ")" . $where_clause, $numbers );
+		$query = $wpdb->prepare( "SELECT SUM(count) AS views FROM " . $wpdb->prefix . "post_views" . $where_clause, $numbers );
 
 		// calculate query hash
 		$query_hash = md5( $query );
@@ -112,7 +121,6 @@ if ( ! function_exists( 'pvc_get_post_views' ) ) {
 
 		return (int) apply_filters( 'pvc_get_post_views', $post_views, $post_id, $period );
 	}
-
 }
 
 /**
@@ -121,12 +129,11 @@ if ( ! function_exists( 'pvc_get_post_views' ) ) {
  * @global object $wpdb
  *
  * @param array $args
+ *
  * @return int|array
  */
 if ( ! function_exists( 'pvc_get_views' ) ) {
-
 	function pvc_get_views( $args = [] ) {
-
 		global $wpdb;
 
 		$range = [];
@@ -195,6 +202,9 @@ if ( ! function_exists( 'pvc_get_views' ) ) {
 			$query_data = array_merge( $query_data, array_values( $args['post_id'] ) );
 		else
 			$query_data = array_merge( $query_data, array_values( $args['post_id'] ), array_values( $args['post_type'] ) );
+		
+		// set where clause
+		$where = apply_filters( 'pvc_get_views_period_where', [], $args );
 
 		// check fields
 		if ( ! in_array( $args['fields'], [ 'views', 'date=>views' ], true ) )
@@ -278,33 +288,48 @@ if ( ! function_exists( 'pvc_get_views' ) ) {
 						// year
 						if ( isset( $chunk['year'] ) ) {
 							// year, week
-							if ( isset( $chunk['week'] ) )
-								$views_query .= " AND pvc.type = 1 AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] . $chunk['week'] );
+							if ( isset( $chunk['week'] ) ) {
+								$where['type'] = 'pvc.type = 1';
+								$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] . $chunk['week'] );
+							}
 							// year, month
 							elseif ( isset( $chunk['month'] ) ) {
 								// year, month, day
-								if ( isset( $chunk['day'] ) )
-									$views_query .= " AND pvc.type = 0 AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] . $chunk['month'] . $chunk['day'] );
+								if ( isset( $chunk['day'] ) ) {
+									$where['type'] = 'pvc.type = 0';
+									$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] . $chunk['month'] . $chunk['day'] );
+								}
 								// year, month
-								else
-									$views_query .= " AND pvc.type = 2 AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] . $chunk['month'] );
+								else {
+									$where['type'] = 'pvc.type = 2';
+									$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] . $chunk['month'] );
+								}
 							// year
-							} else
-								$views_query .= " AND pvc.type = 3 AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] );
+							} else {
+								$where['type'] = 'pvc.type = 3';
+								$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['year'] );
+							}
 						// month
 						} elseif ( isset( $chunk['month'] ) ) {
 							// month, day
 							if ( isset( $chunk['day'] ) ) {
-								$views_query .= " AND pvc.type = 0 AND CAST( RIGHT( pvc.period, 4 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['month'] . $chunk['day'] );
+								$where['type'] = 'pvc.type = 0';
+								$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 4 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['month'] . $chunk['day'] );
 							// month
-							} else
-								$views_query .= " AND pvc.type = 2 AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['month'] );
+							} else {
+								$where['type'] = 'pvc.type = 2';
+								$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['month'] );
+							}
 						// week
-						} elseif ( isset( $chunk['week'] ) )
-							$views_query .= " AND pvc.type = 1 AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['week'] );
+						} elseif ( isset( $chunk['week'] ) ) {
+								$where['type'] = 'pvc.type = 1';
+								$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['week'] );
+						}
 						// day
-						elseif ( isset( $chunk['day'] ) )
-							$views_query .= " AND pvc.type = 0 AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['day'] );
+						elseif ( isset( $chunk['day'] ) ) {
+							$where['type'] = 'pvc.type = 0';
+							$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) " . $chunk['type'] . " " . (int) ( $chunk['day'] );
+						}
 					}
 				}
 			}
@@ -355,9 +380,12 @@ if ( ! function_exists( 'pvc_get_views' ) ) {
 						// get month of sunday
 						$sunday_month = $date->format( 'm' );
 
-						$views_query = " AND pvc.type = 0 AND CAST( pvc.period AS SIGNED ) >= " . (int) ( $year . $monday_month . $monday ) . " AND CAST( pvc.period AS SIGNED ) <= " . (int) ( $date->format( 'Y' ) . $sunday_month . $date->format( 'd' ) );
-					} else
-						$views_query = " AND pvc.type = 1 AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year . $week );
+						$where['type'] = 'pvc.type = 0';
+						$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) >= " . (int) ( $year . $monday_month . $monday ) . " AND CAST( pvc.period AS SIGNED ) <= " . (int) ( $date->format( 'Y' ) . $sunday_month . $date->format( 'd' ) );
+					} else {
+						$where['type'] = 'pvc.type = 1';
+						$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year . $week );
+					}
 				// year, month
 				} elseif ( isset( $month ) ) {
 					// year, month, day
@@ -366,7 +394,8 @@ if ( ! function_exists( 'pvc_get_views' ) ) {
 							// prepare range
 							$range[(string) ( $year . $month . $day )] = 0;
 
-						$views_query = " AND pvc.type = 0 AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year . $month . $day );
+						$where['type'] = 'pvc.type = 0';
+						$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year . $month . $day );
 					// year, month
 					} else {
 						if ( $args['fields'] === 'date=>views' ) {
@@ -381,9 +410,12 @@ if ( ! function_exists( 'pvc_get_views' ) ) {
 								$range[(string) ( $year . $month . str_pad( $i, 2, 0, STR_PAD_LEFT ) )] = 0;
 							}
 
-							$views_query = " AND pvc.type = 0 AND CAST( pvc.period AS SIGNED ) >= " . (int) ( $year . $month ) . "01 AND CAST( pvc.period AS SIGNED ) <= " . (int) ( $year . $month . $last );
-						} else
-							$views_query = " AND pvc.type = 2 AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year . $month );
+							$where['type'] = 'pvc.type = 0';
+							$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) >= " . (int) ( $year . $month ) . "01 AND CAST( pvc.period AS SIGNED ) <= " . (int) ( $year . $month . $last );
+						} else {
+							$where['type'] = 'pvc.type = 2';
+							$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year . $month );
+						}
 					}
 				// year
 				} else {
@@ -396,32 +428,42 @@ if ( ! function_exists( 'pvc_get_views' ) ) {
 						// create date
 						$date = new DateTime( $year . '-12-01' );
 
-						$views_query = " AND pvc.type = 2 AND CAST( pvc.period AS SIGNED ) >= " . (int) ( $year ) . "01 AND CAST( pvc.period AS SIGNED ) <= " . (int) ( $year ) . "12";
-					} else
-						$views_query = " AND pvc.type = 3 AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year );
+						$where['type'] = 'pvc.type = 2';
+						$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) >= " . (int) ( $year ) . "01 AND CAST( pvc.period AS SIGNED ) <= " . (int) ( $year ) . "12";
+					} else {
+						$where['type'] = 'pvc.type = 3';
+						$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( pvc.period AS SIGNED ) = " . (int) ( $year );
+					}
 				}
 			// month
 			} elseif ( isset( $month ) ) {
 				// month, day
 				if ( isset( $day ) ) {
-					$views_query = " AND pvc.type = 0 AND CAST( RIGHT( pvc.period, 4 ) AS SIGNED ) = " . (int) ( $month . $day );
+					$where['type'] = 'pvc.type = 0';
+					$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 4 ) AS SIGNED ) = " . (int) ( $month . $day );
 				// month
 				} else {
-					$views_query = " AND pvc.type = 2 AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) = " . (int) ( $month );
+					$where['type'] = 'pvc.type = 2';
+					$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) = " . (int) ( $month );
 				}
 			// week
 			} elseif ( isset( $week ) ) {
-				$views_query = " AND pvc.type = 1 AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) = " . (int) ( $week );
+				$where['type'] = 'pvc.type = 1';
+				$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) = " . (int) ( $week );
 			// day
 			} elseif ( isset( $day ) ) {
-				$views_query = " AND pvc.type = 0 AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) = " . (int) ( $day );
+				$where['type'] = 'pvc.type = 0';
+				$views_query .= ' AND ' . implode( ' AND ', $where ) . " AND CAST( RIGHT( pvc.period, 2 ) AS SIGNED ) = " . (int) ( $day );
 			}
 		}
+
+		// update where clause
+		$where['type'] = [ 'pvc.type = 4' ];
 
 		$query = $wpdb->prepare(
 			"SELECT " . ( $args['fields'] === 'date=>views' ? 'pvc.period, ' : '' ) . "SUM( COALESCE( pvc.count, 0 ) ) AS post_views
 			FROM " . $wpdb->prefix . "posts wpp
-			LEFT JOIN " . $wpdb->prefix . "post_views pvc ON pvc.id = wpp.ID AND 1 = %d" . ( $views_query !== '' ? ' ' . $views_query : ' AND pvc.type = 4' ) . ( ! empty( $args['post_id'] ) ? ' AND pvc.id IN (' . implode( ',', array_fill( 0, $post_ids_count, '%d' ) ) . ')' : '' ) . "
+			LEFT JOIN " . $wpdb->prefix . "post_views pvc ON pvc.id = wpp.ID AND 1 = %d" . ( $views_query !== '' ? ' ' . $views_query : ' AND ' . implode( ' AND ', $where ) ) . ( ! empty( $args['post_id'] ) ? ' AND pvc.id IN (' . implode( ',', array_fill( 0, $post_ids_count, '%d' ) ) . ')' : '' ) . "
 			" . ( ! empty( $args['post_type'] ) ? 'WHERE wpp.post_type IN (' . implode( ',', array_fill( 0, $post_types_count, '%s' ) ) . ')' : '' ) . "
 			" . ( $views_query !== '' && $special_views_query === false ? 'GROUP BY pvc.period HAVING post_views > 0' : '' ),
 			$query_data
@@ -453,19 +495,18 @@ if ( ! function_exists( 'pvc_get_views' ) ) {
 
 		return apply_filters( 'pvc_get_views', $post_views );
 	}
-
 }
 
 /**
  * Display post views for a given post.
  *
- * @param int|array $post_id
+ * @param int $post_id
  * @param bool $display
+ *
  * @return string|void
  */
 if ( ! function_exists( 'pvc_post_views' ) ) {
-
-	function pvc_post_views( $post_id = 0, $display = true ) {
+	function pvc_post_views( $post_id = 0, $display = true, $period = '' ) {
 		// get all data
 		$post_id = (int) ( empty( $post_id ) ? get_the_ID() : $post_id );
 
@@ -473,7 +514,7 @@ if ( ! function_exists( 'pvc_post_views' ) ) {
 		$options = Post_Views_Counter()->options['display'];
 
 		// get post views
-		$views = pvc_get_post_views( $post_id, $options['display_period'] );
+		$views = pvc_get_post_views( $post_id, $period !== '' ? $period : $options['display_period'] );
 
 		// use number format?
 		$views = $options['use_format'] ? number_format_i18n( $views ) : $views;
@@ -514,27 +555,31 @@ if ( ! function_exists( 'pvc_post_views' ) ) {
 		else
 			return $html;
 	}
-
 }
 
 /**
  * Get most viewed posts.
  *
  * @param array $args
+ *
  * @return array
  */
 if ( ! function_exists( 'pvc_get_most_viewed_posts' ) ) {
-
 	function pvc_get_most_viewed_posts( $args = [] ) {
 		$args = array_merge(
 			[
-				'posts_per_page' => 10,
-				'order'			 => 'desc',
-				'post_type'		 => 'post',
-				'fields'		 => ''
+				'posts_per_page'	=> 10,
+				'order'				=> 'desc',
+				'post_type'			=> [ 'post' ],
+				'post_status'		=> [ 'publish' ],
+				'fields'			=> 'all',
+				'period'			=> 'total'
 			],
 			$args
 		);
+
+		if ( ( is_array( $args['post_type'] ) && in_array( 'attachment', $args['post_type'], true ) ) || ( is_string( $args['post_type'] ) && $args['post_type'] === 'attachment' ) )
+			$args['post_status'][] = 'inherit';
 
 		$args = apply_filters( 'pvc_get_most_viewed_posts_args', $args );
 
@@ -546,18 +591,17 @@ if ( ! function_exists( 'pvc_get_most_viewed_posts' ) ) {
 
 		return apply_filters( 'pvc_get_most_viewed_posts', get_posts( $args ), $args );
 	}
-
 }
 
 /**
  * Display a list of most viewed posts.
  *
- * @param array $post_id
+ * @param array $args
  * @param bool $display
- * @return mixed
+ *
+ * @return void|string
  */
 if ( ! function_exists( 'pvc_most_viewed_posts' ) ) {
-
 	function pvc_most_viewed_posts( $args = [], $display = true ) {
 		$defaults = [
 			'number_of_posts'		=> 5,
@@ -569,75 +613,77 @@ if ( ! function_exists( 'pvc_most_viewed_posts' ) ) {
 			'show_post_thumbnail'	=> false,
 			'show_post_author'		=> false,
 			'show_post_excerpt'		=> false,
-			'no_posts_message'		=> __( 'No Posts', 'post-views-counter' ),
+			'no_posts_message'		=> __( 'No most viewed posts found.', 'post-views-counter' ),
 			'item_before'			=> '',
-			'item_after'			=> ''
+			'item_after'			=> '',
+			'period'				=> 'total'
 		];
 
 		$args = apply_filters( 'pvc_most_viewed_posts_args', wp_parse_args( $args, $defaults ) );
 
+		// get periods
+		$periods = apply_filters( 'pvc_display_period_options', [ 'total' => __( 'Total Views', 'post-views-counter' ) ] );
+
+		// sanitize arguments
 		$args['show_post_views'] = (bool) $args['show_post_views'];
 		$args['show_post_thumbnail'] = (bool) $args['show_post_thumbnail'];
 		$args['show_post_author'] = (bool) $args['show_post_author'];
 		$args['show_post_excerpt'] = (bool) $args['show_post_excerpt'];
+		$args['period'] = isset( $args['period'] ) && array_key_exists( $args['period'], $periods ) ? $args['period'] : $defaults['period'];
+		$args['post_type'] = isset( $args['post_type'] ) ? $args['post_type'] : $defaults['post_type'];
 
-		$posts = pvc_get_most_viewed_posts(
-			[
-				'posts_per_page' => ( isset( $args['number_of_posts'] ) ? (int) $args['number_of_posts'] : $defaults['number_of_posts'] ),
-				'order'			 => ( isset( $args['order'] ) ? $args['order'] : $defaults['order'] ),
-				'post_type'		 => ( isset( $args['post_type'] ) ? $args['post_type'] : $defaults['post_type'] )
-			]
-		);
-
-		if ( ! empty( $posts ) ) {
-			$html = ( $args['list_type'] === 'unordered' ? '<ul>' : '<ol>' );
-
-			foreach ( $posts as $post ) {
-				setup_postdata( $post );
-
-			$html .= '
-			<li>';
-
-				$html .= apply_filters( 'pvc_most_viewed_posts_item_before', $args['item_before'], $post );
-
-				if ( $args['show_post_thumbnail'] && has_post_thumbnail( $post->ID ) ) {
-					$html .= '
-					<span class="post-thumbnail">
-					' . get_the_post_thumbnail( $post->ID, $args['thumbnail_size'] ) . '
-					</span>';
-				}
-
-				$html .= '
-					<a class="post-title" href="' . get_permalink( $post->ID ) . '">' . get_the_title( $post->ID ) . '</a>' . ( $args['show_post_author'] ? ' <span class="author">(' . get_the_author_meta( 'display_name', $post->post_author ) . ')</span> ' : '' ) . ( $args['show_post_views'] ? ' <span class="count">(' . number_format_i18n( pvc_get_post_views( $post->ID ) ) . ')</span>' : '' );
-
-				$excerpt = '';
-
-				if ( $args['show_post_excerpt'] ) {
-					if ( empty( $post->post_excerpt ) )
-						$text = $post->post_content;
-					else
-						$text = $post->post_excerpt;
-
-					if ( ! empty( $text ) )
-						$excerpt = wp_trim_words( str_replace( ']]>', ']]&gt;', strip_shortcodes( $text ) ), apply_filters( 'excerpt_length', 55 ), apply_filters( 'excerpt_more', ' ' . '[&hellip;]' ) );
-				}
-
-				if ( ! empty( $excerpt ) )
-					$html .= '
-
-				<div class="post-excerpt">' . esc_html( $excerpt ) . '</div>';
-
-				$html .= apply_filters( 'pvc_most_viewed_posts_item_after', $args['item_after'], $post );
-
-				$html .= '
-			</li>';
-			}
-
-			wp_reset_postdata();
-
-			$html .= ( $args['list_type'] === 'unordered' ? '</ul>' : '</ol>' );
-		} else
+		// no post types?
+		if ( empty( $args['post_type'] ) )
 			$html = $args['no_posts_message'];
+		else {
+			// get posts
+			$posts = pvc_get_most_viewed_posts( [
+				'posts_per_page'	=> isset( $args['number_of_posts'] ) ? (int) $args['number_of_posts'] : $defaults['number_of_posts'],
+				'order'				=> isset( $args['order'] ) ? $args['order'] : $defaults['order'],
+				'post_type'			=> $args['post_type'],
+				'period'			=> $args['period']
+			] );
+
+			if ( ! empty( $posts ) ) {
+				$html = ( $args['list_type'] === 'unordered' ? '<ul>' : '<ol>' );
+
+				foreach ( $posts as $post ) {
+					setup_postdata( $post );
+
+					$html .= '<li>';
+					$html .= apply_filters( 'pvc_most_viewed_posts_item_before', $args['item_before'], $post );
+
+					if ( $args['show_post_thumbnail'] && has_post_thumbnail( $post->ID ) ) {
+						$html .= '<span class="post-thumbnail">' . get_the_post_thumbnail( $post->ID, $args['thumbnail_size'] ) . '</span>';
+					}
+
+					$html .= '<a class="post-title" href="' . get_permalink( $post->ID ) . '">' . get_the_title( $post->ID ) . '</a>' . ( $args['show_post_author'] ? ' <span class="author">(' . get_the_author_meta( 'display_name', $post->post_author ) . ')</span> ' : '' ) . ( $args['show_post_views'] ? ' <span class="count">(' . number_format_i18n( (int) ( property_exists( $post, 'post_views' ) ? $post->post_views : pvc_get_post_views( $post->ID, $args['period'] ) ) ) . ')</span>' : '' );
+
+					if ( $args['show_post_excerpt'] ) {
+						$excerpt = '';
+
+						if ( empty( $post->post_excerpt ) )
+							$text = $post->post_content;
+						else
+							$text = $post->post_excerpt;
+
+						if ( ! empty( $text ) )
+							$excerpt = wp_trim_words( str_replace( ']]>', ']]&gt;', strip_shortcodes( $text ) ), apply_filters( 'excerpt_length', 55 ), apply_filters( 'excerpt_more', ' ' . '[&hellip;]' ) );
+
+						if ( ! empty( $excerpt ) )
+							$html .= '<div class="post-excerpt">' . esc_html( $excerpt ) . '</div>';
+					}
+
+					$html .= apply_filters( 'pvc_most_viewed_posts_item_after', $args['item_after'], $post );
+					$html .= '</li>';
+				}
+
+				wp_reset_postdata();
+
+				$html .= ( $args['list_type'] === 'unordered' ? '</ul>' : '</ol>' );
+			} else
+				$html = $args['no_posts_message'];
+		}
 
 		$html = apply_filters( 'pvc_most_viewed_posts_html', $html, $args );
 
@@ -646,7 +692,6 @@ if ( ! function_exists( 'pvc_most_viewed_posts' ) ) {
 		else
 			return $html;
 	}
-
 }
 
 /**
@@ -654,8 +699,9 @@ if ( ! function_exists( 'pvc_most_viewed_posts' ) ) {
  *
  * @global object $wpdb
  *
- * @param int $post_id Post ID
- * @param int $post_views Number of post views
+ * @param int $post_id
+ * @param int $post_views
+ *
  * @return bool|int
  */
 function pvc_update_post_views( $post_id = 0, $post_views = 0 ) {
@@ -703,6 +749,7 @@ function pvc_update_post_views( $post_id = 0, $post_views = 0 ) {
  *
  * @param int $post_id
  * @param bool $bypass_content
+ *
  * @return bool
  */
 function pvc_view_post( $post_id = 0, $bypass_content = false ) {
@@ -731,4 +778,88 @@ function pvc_view_post( $post_id = 0, $bypass_content = false ) {
 		$pvc->counter->check_post( $post_id );
 
 	return true;
+}
+
+/**
+ * Convert string to date.
+ *
+ * @param string $period
+ * @return DateTiem object
+ */
+if ( ! function_exists( 'pvc_period2date' ) ) {
+	function pvc_period2date( $period ) {
+		$datetime = false;
+		
+		// check requested period by string length
+		$length = is_string( $period ) ? strlen( $period ) : 0;
+
+		if ( $length ) {
+			switch ( $length ) {
+				// day
+				case 8:
+					$datetime = date_create_from_format( 'Ymd' , $period );
+					break;
+
+				// week
+				case 7:
+					// get year and week from string
+					$period_year = (int) substr( $period, 0, -3 );
+					$period_week = (int) substr( $period, 4, -1 );
+
+					$datetime = new DateTime();
+					$datetime->setISODate( $period_year, $period_week );
+					break;
+
+				// month
+				case 6:
+					$datetime = date_create_from_format( 'Ym' , $period );
+					break;
+				// year
+				case 4:
+					$datetime = date_create_from_format( 'Y' , $period );
+					break;
+
+				default:
+					$datetime = new DateTime();
+			}
+		}
+		
+		return apply_filters( 'pvc_period2date', $datetime, $period );
+	}
+}
+
+/**
+* Convert period to timestamp.
+*
+* @param string $period
+* @return int
+*/
+if ( ! function_exists( 'pvc_period2timestamp' ) ) {
+	function pvc_period2timestamp( $period ) {
+		$period = preg_replace( '/[^a-z0-9_|]/', '', $period );
+		
+		// default time
+		$timestamp = current_time( 'timestamp', false );
+		
+		// whitelisted period?
+		if ( in_array( $period, [ 'this_week', 'this_year', 'this_month' ], true ) ) {
+			$timestamp = current_time( 'timestamp', false );
+		// backward compatibility
+		} else if ( preg_match( '/^([0-9]{2}\|[0-9]{4})$/', $period ) === 1 ) {
+			// month|year
+			$date = explode( '|', $period, 2 );
+
+			// get timestamp
+			$timestamp = strtotime( (string) $date[1] . '-' . (string) $date[0] . '-13' );
+		} else {
+			// convert string to DateTime()
+			$d = pvc_period2date( $period );
+			
+			if ( $d ) {
+				$timestamp = $d->getTimestamp();
+			}
+		}
+
+		return $timestamp;
+	}
 }
