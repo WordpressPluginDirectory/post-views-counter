@@ -2,12 +2,12 @@
 /*
 Plugin Name: Post Views Counter
 Description: Post Views Counter allows you to display how many times a post, page or custom post type had been viewed in a simple, fast and reliable way.
-Version: 1.5.1
+Version: 1.5.5
 Author: dFactory
 Author URI: https://dfactory.co/
 Plugin URI: https://postviewscounter.com/
 License: MIT License
-License URI: http://opensource.org/licenses/MIT
+License URI: https://opensource.org/licenses/MIT
 Text Domain: post-views-counter
 Domain Path: /languages
 
@@ -30,7 +30,7 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 	 * Post Views Counter final class.
 	 *
 	 * @class Post_Views_Counter
-	 * @version	1.5.1
+	 * @version	1.5.5
 	 */
 	final class Post_Views_Counter {
 
@@ -46,16 +46,16 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 				'data_storage'			=> 'cookies',
 				'amp_support'			=> false,
 				'counter_mode'			=> 'php',
-				'post_views_column'		=> true,
-				'restrict_edit_views'	=> false,
 				'time_between_counts'	=> [
 					'number'	=> 24,
 					'type'		=> 'hours'
 				],
+				'count_time'			=> 'gmt',
 				'reset_counts'			=> [
 					'number'	=> 0,
 					'type'		=> 'days'
 				],
+				'caching_compatibility'	=> false,
 				'object_cache'			=> false,
 				'flush_interval'		=> [
 					'number'	=> 0,
@@ -85,6 +85,8 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 					'roles'	 => []
 				],
 				'position'				=> 'after',
+				'post_views_column'		=> true,
+				'restrict_edit_views'	=> false,
 				'dynamic_loading'		=> false,
 				'use_format'			=> true,
 				'display_style'			=> [
@@ -100,7 +102,7 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 				'deactivation_delete'	=> false,
 				'license'				=> ''
 			],
-			'version'	=> '1.5.1'
+			'version'	=> '1.5.5'
 		];
 
 		// instances
@@ -110,6 +112,7 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 		public $dashboard;
 		public $frontend;
 		public $functions;
+		public $settings;
 		public $settings_api;
 
 		/**
@@ -165,7 +168,9 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 					self::$instance->functions = new Post_Views_Counter_Functions();
 
 					new Post_Views_Counter_Update();
-					new Post_Views_Counter_Settings();
+
+					self::$instance->settings = new Post_Views_Counter_Settings();
+
 					new Post_Views_Counter_Admin();
 					new Post_Views_Counter_Query();
 
@@ -253,12 +258,19 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 				'other'		=> array_merge( $this->defaults['other'], get_option( 'post_views_counter_settings_other', $this->defaults['other'] ) )
 			];
 
+			// 1.5.3+
+			if ( ! isset( $this->options['general']['post_views_column'] ) )
+				$this->options['general']['post_views_column'] = $this->options['display']['post_views_column'];
+
+			if ( ! isset( $this->options['general']['restrict_edit_views'] ) )
+				$this->options['general']['restrict_edit_views'] = $this->options['display']['restrict_edit_views'];
+
 			// actions
 			add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue_scripts' ] );
 			add_action( 'wp_loaded', [ $this, 'load_pluggable_functions' ] );
 			add_action( 'init', [ $this, 'register_blocks' ] );
 			add_action( 'admin_init', [ $this, 'update_notice' ] );
-			add_action( 'wp_initialize_site', [ $this, 'initialize_new_network_site' ] );
+			add_action( 'wp_initialize_site', [ $this, 'init_new_network_site' ] );
 			add_action( 'wp_ajax_pvc_dismiss_notice', [ $this, 'dismiss_notice' ] );
 
 			// filters
@@ -774,7 +786,7 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 		 *
 		 * @return void
 		 */
-		public function initialize_new_network_site( $site ) {
+		public function init_new_network_site( $site ) {
 			if ( is_multisite() ) {
 				// change to another site
 				switch_to_blog( $site->blog_id );
@@ -882,7 +894,8 @@ if ( ! class_exists( 'Post_Views_Counter' ) ) {
 
 			// add styles
 			wp_add_inline_style( 'pvc-pro-style', '
-			.post-views-counter-settings tr.pvc-pro th:after, .nav-tab-wrapper a.nav-tab.nav-tab-disabled.pvc-pro:after, .post-views-counter-settings tr.pvc-pro-extended label[for="post_views_counter_general_counter_mode_ajax"]:after {
+			.post-views-counter-settings tr.pvc-pro th:after, .nav-tab-wrapper a.nav-tab.nav-tab-disabled.pvc-pro:after, .post-views-counter-settings tr.pvc-pro-extended label[for="post_views_counter_general_counter_mode_ajax"]:after,
+			.post-views-counter-settings tr.pvc-pro-extended label[for="pvc_exclude-ai_bots"]:after {
 				content: \'PRO\';
 				display: inline;
 				background-color: #ffc107;

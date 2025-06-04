@@ -34,6 +34,7 @@ class Post_Views_Counter_Settings {
 	 * @param string $page_type
 	 * @param string $url_page
 	 * @param string $tab_key
+	 *
 	 * @return void
 	 */
 	public function settings_form( $setting, $page_type, $url_page, $tab_key ) {
@@ -61,10 +62,7 @@ class Post_Views_Counter_Settings {
 		// get main instance
 		$pvc = Post_Views_Counter();
 
-		$license_data = get_option( 'post_views_counter_pro_license', [] );
-		$is_pro = class_exists( 'Post_Views_Counter_Pro' );
-
-		if ( ! $is_pro ) {
+		if ( ! class_exists( 'Post_Views_Counter_Pro' ) ) {
 			echo '
 			<div class="post-views-sidebar">
 				<div class="post-views-credits">
@@ -72,17 +70,17 @@ class Post_Views_Counter_Settings {
 						<div class="inner">
 							<div class="pvc-sidebar-info">
 								<div class="pvc-sidebar-head">
-									<p>' . esc_html__( "You're using", 'post-views-counter' ) . '</p>
-									<h2>Post Views Counter</h2>
-									<h2>Lite</h2>
+									<h3 class="pvc-sidebar-title">Get Post Views Counter Pro</h3>
 								</div>
 								<div class="pvc-sidebar-body">
-									<p><span class="pvc-icon pvc-icon-arrow-right"></span>' . __( 'Get <b>more accurate information</b> about the number of views of your site, regardless of what the user is visiting.', 'post-views-counter' ) . '</p>
-									<p><span class="pvc-icon pvc-icon-arrow-right"></span>' . __( 'Unlock <b>optimization features</b> and speed up view count tracking.', 'post-views-counter' ) . '</p>
-									<p><span class="pvc-icon pvc-icon-arrow-right"></span>' . __( 'Take your insights to the next level with dedicated, <b>customizable reporting</b>.', 'post-views-counter' ) . '</p>
+									<p><span class="pvc-icon pvc-icon-check"></span>' . __( '<b>Collect more accurate data</b> about the number of views of your site, regardless of what the user is visiting.', 'post-views-counter' ) . '</p>
+									<p><span class="pvc-icon pvc-icon-check"></span>' . __( '<b>Unlock optimization features</b> and caching plugins compatibility to speed up view count tracking.', 'post-views-counter' ) . '</p>
+									<p><span class="pvc-icon pvc-icon-check"></span>' . __( '<b>Take your insights to the next level</b> with customizable Views by Date, Post and Author reporting.', 'post-views-counter' ) . '</p>
+									<p><span class="pvc-icon pvc-icon-check"></span>' . __( '<b>Order posts by views count</b> using built-in Elementor Pro, Divi Theme and GenerateBlocks integration.', 'post-views-counter' ) . '</p>
 								</div>
 								<div class="pvc-pricing-footer">
-									<a href="https://postviewscounter.com/upgrade/?utm_source=post-views-counter-lite&utm_medium=button&utm_campaign=upgrade-to-pro" class="button button-secondary button-hero pvc-button" target="_blank">' . esc_html__( 'Upgrade to Pro', 'post-views-counter' ) . '</a>
+									<a href="https://postviewscounter.com/upgrade/?utm_source=post-views-counter-lite&utm_medium=button&utm_campaign=upgrade-to-pro" class="button button-secondary button-hero pvc-button" target="_blank">' . esc_html__( 'Upgrade to Pro', 'post-views-counter' ) . ' &rarr;</a>
+									<p>Starting from $29 per year<br />14-day money back guarantee.</p>
 								</div>
 							</div>
 						</div>
@@ -135,6 +133,7 @@ class Post_Views_Counter_Settings {
 	 * Add settings data.
 	 *
 	 * @param array $settings
+	 *
 	 * @return array
 	 */
 	public function settings_data( $settings ) {
@@ -153,7 +152,8 @@ class Post_Views_Counter_Settings {
 
 		// user groups
 		$groups = [
-			'robots'	=> __( 'robots', 'post-views-counter' ),
+			'robots'	=> __( 'crawlers', 'post-views-counter' ),
+			'ai_bots'	=> __( 'AI bots', 'post-views-counter' ),
 			'users'		=> __( 'logged in users', 'post-views-counter' ),
 			'guests'	=> __( 'guests', 'post-views-counter' ),
 			'roles'		=> __( 'selected user roles', 'post-views-counter' )
@@ -164,6 +164,9 @@ class Post_Views_Counter_Settings {
 
 		// get post types
 		$post_types = $pvc->functions->get_post_types();
+
+		// check object cache
+		$wp_using_ext_object_cache = wp_using_ext_object_cache();
 
 		// add settings
 		$settings['post-views-counter'] = [
@@ -246,22 +249,6 @@ class Post_Views_Counter_Settings {
 					'options'		=> $this->get_counter_modes(),
 					'disabled'		=> [ 'ajax' ]
 				],
-				'post_views_column' => [
-					'tab'			=> 'general',
-					'title'			=> __( 'Admin Column', 'post-views-counter' ),
-					'section'		=> 'post_views_counter_general_settings',
-					'type'			=> 'boolean',
-					'description'	=> '',
-					'label'			=> __( 'Enable to display post views count admin column for each counted content type.', 'post-views-counter' )
-				],
-				'restrict_edit_views' => [
-					'tab'			=> 'general',
-					'title'			=> __( 'Admin Edit', 'post-views-counter' ),
-					'section'		=> 'post_views_counter_general_settings',
-					'type'			=> 'boolean',
-					'description'	=> '',
-					'label'			=> __( 'Enable to restrict post views editing to admins only.', 'post-views-counter' )
-				],
 				'data_storage' => [
 					'tab'			=> 'general',
 					'title'			=> __( 'Data Storage', 'post-views-counter' ),
@@ -301,6 +288,21 @@ class Post_Views_Counter_Settings {
 					'callback'		=> [ $this, 'setting_time_between_counts' ],
 					'validate'		=> [ $this, 'validate_time_between_counts' ]
 				],
+				'count_time' => [
+					'tab'			=> 'general',
+					'title'			=> __( 'Count Time', 'post-views-counter' ),
+					'section'		=> 'post_views_counter_general_settings',
+					'type'			=> 'radio',
+					'class'			=> 'pvc-pro',
+					'skip_saving'	=> true,
+					'description'	=> __( "Whether to store the views using GMT timezone or adjust it to the GMT offset of the site.", 'post-views-counter' ),
+					'options'		=> [
+						'gmt'		=> __( 'GMT Time', 'post-views-counter' ),
+						'local'	=> __( 'Local Time', 'post-views-counter' )
+					],
+					'disabled'		=> [ 'gmt', 'local' ],
+					'value'			=> 'gmt'
+				],
 				'strict_counts' => [
 					'tab'			=> 'general',
 					'title'			=> __( 'Strict counts', 'post-views-counter' ),
@@ -325,6 +327,18 @@ class Post_Views_Counter_Settings {
 					'callback'		=> [ $this, 'setting_reset_counts' ],
 					'validate'		=> [ $this, 'validate_reset_counts' ]
 				],
+				'caching_compatibility' => [
+					'tab'			=> 'general',
+					'title'			=> __( 'Caching Compatibility', 'post-views-counter' ),
+					'section'		=> 'post_views_counter_general_settings',
+					'type'			=> 'boolean',
+					'class'			=> 'pvc-pro',
+					'disabled'		=> true,
+					'value'			=> false,
+					'skip_saving'	=> true,
+					'label'			=> __( 'Enable to apply changes improving compatibility with caching plugins.', 'post-views-counter' ),
+					'description'	=> $this->get_caching_compatibility_description()
+				],
 				'object_cache' => [
 					'tab'			=> 'general',
 					'title'			=> __( 'Object Cache Support', 'post-views-counter' ),
@@ -335,7 +349,7 @@ class Post_Views_Counter_Settings {
 					'value'			=> false,
 					'skip_saving'	=> true,
 					'label'			=> sprintf( __( 'Enable to use object cache optimization.', 'post-views-counter' ), '<code>Redis</code>', '<code>Memcached</code>' ),
-					'description'	=> sprintf( __( 'This feature requires a persistent object cache like %s or %s to be installed and activated.', 'post-views-counter' ), '<code>Redis</code>', '<code>Memcached</code>' )
+					'description'	=> sprintf( __( 'This feature requires a persistent object cache like %s or %s to be installed and activated.', 'post-views-counter' ), '<code>Redis</code>', '<code>Memcached</code>' ) . '<br />' . __( 'Current status', 'post-views-counter' ) . ': <span class="' . ( $wp_using_ext_object_cache ? '' : 'un' ) . 'available">' . ( $wp_using_ext_object_cache ? __( 'available', 'post-views-counter' ) : __( 'unavailable', 'post-views-counter' ) ) . '</span>.'
 				],
 				'exclude' => [
 					'tab'			=> 'general',
@@ -343,9 +357,13 @@ class Post_Views_Counter_Settings {
 					'section'		=> 'post_views_counter_general_settings',
 					'type'			=> 'custom',
 					'description'	=> '',
+					'class'			=> 'pvc-pro-extended',
 					'options'		=> [
 						'groups'	=> $groups,
 						'roles'		=> $user_roles
+					],
+					'disabled'		=> [
+						'groups'	=> [ 'ai_bots' ]
 					],
 					'callback'		=> [ $this, 'setting_exclude' ],
 					'validate'		=> [ $this, 'validate_exclude' ]
@@ -416,12 +434,31 @@ class Post_Views_Counter_Settings {
 						'manual'	=> __( 'manual', 'post-views-counter' )
 					]
 				],
+				'post_views_column' => [
+					'tab'			=> 'display',
+					'title'			=> __( 'Admin Column', 'post-views-counter' ),
+					'section'		=> 'post_views_counter_display_settings',
+					'type'			=> 'boolean',
+					'description'	=> '',
+					'label'			=> __( 'Enable to display views count admin column.', 'post-views-counter' )
+				],
+				'restrict_edit_views' => [
+					'tab'			=> 'display',
+					'title'			=> __( 'Admin Edit', 'post-views-counter' ),
+					'section'		=> 'post_views_counter_display_settings',
+					'type'			=> 'boolean',
+					'description'	=> '',
+					'label'			=> __( 'Enable to allow views count editing.', 'post-views-counter' )
+				],
 				'dynamic_loading' => [
 					'tab'			=> 'display',
 					'title'			=> __( 'Dynamic Loading', 'post-views-counter' ),
 					'section'		=> 'post_views_counter_display_settings',
 					'type'			=> 'boolean',
 					'class'			=> 'pvc-pro',
+					'disabled'		=> true,
+					'skip_saving'	=> true,
+					'value'			=> false,
 					'label'			=> __( 'Enable dynamic loading and prevent caching of the displayed views count.', 'post-views-counter' )
 				],
 				'use_format' => [
@@ -553,11 +590,12 @@ class Post_Views_Counter_Settings {
 
 		return $settings;
 	}
-
+	
 	/**
 	 * Add settings page.
 	 *
 	 * @param array $pages
+	 *
 	 * @return array
 	 */
 	public function settings_page( $pages ) {
@@ -590,6 +628,9 @@ class Post_Views_Counter_Settings {
 				]
 			]
 		];
+
+		// update admin title
+		add_filter( 'admin_title', [ $this, 'admin_title' ], 10, 2 );
 
 		// submenu?
 		if ( $pvc->options['other']['menu_position'] === 'sub' ) {
@@ -669,6 +710,7 @@ class Post_Views_Counter_Settings {
 	 *
 	 * @param string|null $submenu_file
 	 * @param string $parent_file
+	 *
 	 * @return string|null
 	 */
 	public function submenu_file( $submenu_file, $parent_file ) {
@@ -683,11 +725,58 @@ class Post_Views_Counter_Settings {
 	}
 
 	/**
+	 * Update admin title.
+	 *
+	 * @global array $submenu
+	 * @global string $pagenow
+	 *
+	 * @param string $admin_title
+	 * @param string $title
+	 *
+	 * @return string
+	 */
+	public function admin_title( $admin_title, $title ) {
+		global $submenu, $pagenow;
+
+		// get main instance
+		$pvc = Post_Views_Counter();
+
+		if ( isset( $_GET['page'] ) && $_GET['page'] === 'post-views-counter' ) {
+			if ( $pvc->options['other']['menu_position'] === 'sub' && $pagenow === 'options-general.php' ) {
+				// get tab
+				$tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'general';
+
+				// get settings pages
+				$pages = $pvc->settings_api->get_pages();
+
+				if ( array_key_exists( $tab, $pages['post-views-counter']['tabs'] ) ) {
+					// update title
+					$admin_title = preg_replace( '/' . $pages['post-views-counter']['page_title'] . '/', $pages['post-views-counter']['page_title'] . ' - ' . $pages['post-views-counter']['tabs'][$tab]['label'], $admin_title, 1 );
+				}
+			} else if ( $pvc->options['other']['menu_position'] === 'top' && get_admin_page_parent() === 'post-views-counter' && ! empty( $submenu['post-views-counter'] ) ) {
+				// get tab
+				$tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'general';
+
+				// get settings pages
+				$pages = $pvc->settings_api->get_pages();
+
+				if ( array_key_exists( 'post-views-counter-' . $tab, $pages ) ) {
+					// update title
+					$admin_title = $pages['post-views-counter']['page_title'] . ' - ' . preg_replace( '/' . $title . '/', $pages['post-views-counter-' . $tab]['page_title'], $admin_title, 1 );
+				}
+			}
+		}
+
+		return $admin_title;
+	}
+
+	/**
 	 * Validate options.
 	 *
 	 * @global object $wpdb
 	 *
 	 * @param array $input
+	 *
 	 * @return array
 	 */
 	public function validate_settings( $input ) {
@@ -756,6 +845,176 @@ class Post_Views_Counter_Settings {
 		}
 
 		return $input;
+	}
+
+	/**
+	 * Get caching compatibility description.
+	 *
+	 * @return array
+	 */
+	public function get_caching_compatibility_description() {
+		// caching compatibility description
+		$caching_compatibility_desc = '';
+
+		// get active caching plugins
+		$active_plugins = $this->get_active_caching_plugins();
+
+		if ( ! empty( $active_plugins ) ) {
+			$empty_active_caching_plugins = false;
+			$active_plugins_html = [];
+
+			$caching_compatibility_desc .= esc_html__( 'Currently detected active caching plugins', 'cookie-notice' ) . ': ';
+
+			foreach ( $active_plugins as $plugin ) {
+				$active_plugins_html[] = '<code>' . esc_html( $plugin ) . '</code>';
+			}
+
+			$caching_compatibility_desc .= implode( ', ', $active_plugins_html ) . '.';
+		} else {
+			$empty_active_caching_plugins = true;
+
+			$caching_compatibility_desc .= esc_html__( 'No compatible caching plugins found.', 'cookie-notice' );
+		}
+
+		return $caching_compatibility_desc . '<br />' . __( 'Current status', 'post-views-counter' ) . ': <span class="' . ( ! $empty_active_caching_plugins ? '' : 'un' ) . 'available">' . ( ! $empty_active_caching_plugins ? __( 'available', 'post-views-counter' ) : __( 'unavailable', 'post-views-counter' ) ) . '</span>.';
+	}
+
+	/**
+	 * Get active caching plugins.
+	 *
+	 * @return array
+	 */
+	public function get_active_caching_plugins() {
+		$active_plugins = [];
+
+		// autoptimize
+		if ( $this->is_plugin_active( 'autoptimize' ) )
+			$active_plugins[] = 'Autoptimize';
+
+		// breeze
+		// if ( $this->is_plugin_active( 'breeze' ) )
+			// $active_plugins[] = 'Breeze';
+
+		// hummingbird
+		if ( $this->is_plugin_active( 'hummingbird' ) )
+			$active_plugins[] = 'Hummingbird';
+
+		// litespeed
+		if ( $this->is_plugin_active( 'litespeed' ) )
+			$active_plugins[] = 'LiteSpeed Cache';
+
+		// speed optimizer
+		if ( $this->is_plugin_active( 'speedoptimizer' ) )
+			$active_plugins[] = 'Speed Optimizer';
+
+		// speedycache
+		if ( $this->is_plugin_active( 'speedycache' ) )
+			$active_plugins[] = 'SpeedyCache';
+
+		// wp fastest cache
+		if ( $this->is_plugin_active( 'wpfastestcache' ) )
+			$active_plugins[] = 'WP Fastest Cache';
+
+		// wp-optimize
+		if ( $this->is_plugin_active( 'wpoptimize' ) )
+			$active_plugins[] = 'WP-Optimize';
+
+		// wp rocket
+		if ( $this->is_plugin_active( 'wprocket' ) )
+			$active_plugins[] = 'WP Rocket';
+
+		// wp super cache
+		// if ( $this->is_plugin_active( 'wpsupercache' ) )
+			// $active_plugins[] = 'WP Super Cache';
+
+		return apply_filters( 'pvc_active_caching_plugins', $active_plugins );
+	}
+
+	/**
+	 * Check whether specified plugin is active.
+	 *
+	 * @global object $siteground_optimizer_loader
+	 * @global int $wpsc_version
+	 *
+	 * @param string $plugin
+	 *
+	 * @return bool
+	 */
+	public function is_plugin_active( $plugin = '' ) {
+		// set default flag
+		$is_plugin_active = false;
+
+		switch ( $plugin ) {
+			// autoptimize
+			case 'autoptimize':
+				if ( function_exists( 'autoptimize' ) && defined( 'AUTOPTIMIZE_PLUGIN_VERSION' ) && version_compare( AUTOPTIMIZE_PLUGIN_VERSION, '2.4', '>=' ) )
+					$is_plugin_active = true;
+				break;
+
+			// breeze
+			// case 'breeze':
+				// if ( class_exists( 'Breeze_PurgeCache' ) && class_exists( 'Breeze_Options_Reader' ) && function_exists( 'breeze_get_option' ) && function_exists( 'breeze_update_option' ) && defined( 'BREEZE_VERSION' ) && version_compare( BREEZE_VERSION, '1.1.0', '>=' ) )
+					// $is_plugin_active = true;
+				// break;
+
+			// hummingbird
+			case 'hummingbird':
+				if ( class_exists( 'Hummingbird\\WP_Hummingbird' ) && defined( 'WPHB_VERSION' ) && version_compare( WPHB_VERSION, '2.1.0', '>=' ) )
+					$is_plugin_active = true;
+				break;
+
+			// litespeed
+			case 'litespeed':
+				if ( class_exists( 'LiteSpeed\Core' ) && defined( 'LSCWP_CUR_V' ) && version_compare( LSCWP_CUR_V, '3.0', '>=' ) )
+					$is_plugin_active = true;
+				break;
+
+			// speed optimizer
+			case 'speedoptimizer':
+				global $siteground_optimizer_loader;
+
+				if ( ! empty( $siteground_optimizer_loader ) && is_object( $siteground_optimizer_loader ) && is_a( $siteground_optimizer_loader, 'SiteGround_Optimizer\Loader\Loader' ) && defined( '\SiteGround_Optimizer\VERSION' ) && version_compare( \SiteGround_Optimizer\VERSION, '5.5', '>=' ) )
+					$is_plugin_active = true;
+				break;
+
+			// speedycache
+			case 'speedycache':
+				if ( class_exists( 'SpeedyCache' ) && defined( 'SPEEDYCACHE_VERSION' ) && function_exists( 'speedycache_delete_cache' ) && version_compare( SPEEDYCACHE_VERSION, '1.0.0', '>=' ) )
+					$is_plugin_active = true;
+				break;
+
+			// wp fastest cache
+			case 'wpfastestcache':
+				if ( function_exists( 'wpfc_clear_all_cache' ) )
+					$is_plugin_active = true;
+				break;
+
+			// wp-optimize
+			case 'wpoptimize':
+				if ( function_exists( 'WP_Optimize' ) && defined( 'WPO_VERSION' ) && version_compare( WPO_VERSION, '3.0.12', '>=' ) )
+					$is_plugin_active = true;
+				break;
+
+			// wp rocket
+			case 'wprocket':
+				if ( function_exists( 'rocket_init' ) && defined( 'WP_ROCKET_VERSION' ) && version_compare( WP_ROCKET_VERSION, '3.8', '>=' ) )
+					$is_plugin_active = true;
+				break;
+
+			// wp super cache
+			// case 'wpsupercache':
+				// global $wpsc_version;
+
+				// if ( ( ! empty( $wpsc_version ) && $wpsc_version >= 169 ) || ( defined( 'WPSC_VERSION' ) && version_compare( WPSC_VERSION, '1.6.9', '>=' ) ) )
+					// $is_plugin_active = true;
+				// break;
+
+			// other caching plugin
+			default:
+				$is_plugin_active = apply_filters( 'pvc_is_plugin_active', false, $plugin );
+		}
+
+		return $is_plugin_active;
 	}
 
 	/**
@@ -1035,8 +1294,10 @@ class Post_Views_Counter_Settings {
 		$html = '';
 
 		foreach ( $field['options']['groups'] as $type => $type_name ) {
+			$is_disabled = ! empty( $field['disabled']['groups'] ) && in_array( $type, $field['disabled']['groups'], true );
+
 			$html .= '
-			<label><input id="' . esc_attr( 'pvc_exclude-' . $type ) . '" type="checkbox" name="post_views_counter_settings_general[exclude][groups][' . esc_attr( $type ) . ']" value="1" ' . checked( in_array( $type, $pvc->options['general']['exclude']['groups'], true ), true, false ) . ' />' . esc_html( $type_name ) . '</label>';
+			<label for="' . esc_attr( 'pvc_exclude-' . $type ) . '"><input id="' . esc_attr( 'pvc_exclude-' . $type ) . '" type="checkbox" name="post_views_counter_settings_general[exclude][groups][' . esc_attr( $type ) . ']" value="1" ' . checked( in_array( $type, $pvc->options['general']['exclude']['groups'], true ) && ! $is_disabled, true, false ) . ' ' . disabled( $is_disabled, true, false ) . ' />' . esc_html( $type_name ) . '</label>';
 		}
 
 		$html .= '
@@ -1068,6 +1329,10 @@ class Post_Views_Counter_Settings {
 			$groups = [];
 
 			foreach ( $input['exclude']['groups'] as $group => $set ) {
+				// disallow disabled checkboxes
+				if ( ! empty( $field['disabled']['groups'] ) && in_array( $group, $field['disabled']['groups'], true ) )
+					continue;
+
 				if ( isset( $field['options']['groups'][$group] ) )
 					$groups[] = $group;
 			}
@@ -1189,6 +1454,7 @@ class Post_Views_Counter_Settings {
 	 * Setting: user type.
 	 *
 	 * @param array $field
+	 *
 	 * @return string
 	 */
 	public function setting_restrict_display( $field ) {
@@ -1198,7 +1464,7 @@ class Post_Views_Counter_Settings {
 		$html = '';
 
 		foreach ( $field['options']['groups'] as $type => $type_name ) {
-			if ( $type === 'robots' )
+			if ( $type === 'robots' || $type === 'ai_bots' )
 				continue;
 
 			$html .= '
@@ -1226,6 +1492,7 @@ class Post_Views_Counter_Settings {
 	 *
 	 * @param array $input
 	 * @param array $field
+	 *
 	 * @return array
 	 */
 	public function validate_restrict_display( $input, $field ) {
@@ -1234,7 +1501,7 @@ class Post_Views_Counter_Settings {
 			$groups = [];
 
 			foreach ( $input['restrict_display']['groups'] as $group => $set ) {
-				if ( $group === 'robots' )
+				if ( $group === 'robots' || $group === 'ai_bots' )
 					continue;
 
 				if ( isset( $field['options']['groups'][$group] ) )
